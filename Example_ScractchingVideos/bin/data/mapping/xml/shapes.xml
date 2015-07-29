@@ -1,0 +1,17 @@
+<root>
+    <shape id="2">
+        <setting key="type">quad</setting>
+        <outputVertices>
+            <vertex x="338" y="49"></vertex>
+            <vertex x="1225" y="56"></vertex>
+            <vertex x="1112" y="865"></vertex>
+            <vertex x="451" y="868"></vertex>
+        </outputVertices>
+        <inputPolygon>
+            <vertex x="457" y="220"></vertex>
+            <vertex x="845" y="220"></vertex>
+            <vertex x="845" y="707"></vertex>
+            <vertex x="457" y="707"></vertex>
+        </inputPolygon>
+    </shape>
+</root>

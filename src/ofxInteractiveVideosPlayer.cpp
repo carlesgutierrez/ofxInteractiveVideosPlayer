@@ -1,6 +1,6 @@
 //
 //  ofxInteractiveVideosPlayer.cpp
-//  myChinoCagaTio
+//  
 //
 //  Created by carles on 26/02/15.
 //
@@ -13,29 +13,80 @@ ofxInteractiveVideosPlayer::ofxInteractiveVideosPlayer(){
 }
 
 ofxInteractiveVideosPlayer::~ofxInteractiveVideosPlayer() {
-
+	bMainVideo = false;
 }
 
-//--------------------------------------------------------------
-void ofxInteractiveVideosPlayer::setup(){
-	
-	setupAllNormalVideos();
 
-	jump2NextVideo();
+
+//--------------------------------------------------------------
+void ofxInteractiveVideosPlayer::setup(string _videopath){
+	
+	setupAllNormalVideos(_videopath);
+
+	jump2InitVideo();
 	
 	ofSeedRandom();
 	
 	// listen on the given port
 	cout << "listening for osc messages on port " << PORT_OSC_RECEIVE << "\n";
 	
+	//Load a visual cursor for feedback
+	myFeedBackCursorImage.loadImage("FeedBackImages/HandWithTransparency.png");
+	myFeedBackCursorImage.setAnchorPoint(myFeedBackCursorImage.getWidth()*0.5, myFeedBackCursorImage.getHeight()*0.5);
+	
 	//OSC
 	setupReceiverOSC();
 	setupSenderStadisticsOSC();
 	
-	//Stats
-	statsMouse.setup(10,0,ofGetWidth());
-	statsMouse.addMarker( 100  );
+	//Stats //TODO REMOVE this and use smooth movements
+	statsMouse.setup(1,0,ofGetWidth());
+	statsMouse.addMarker( 10  );
+	
+	
+	//Default mode. After setup is able to resetMode to another one more complex
+	myInteractionType = modeSequence;
+	
+	//Load from XML
+	//bShowVideoFeedBack = false;
+	//bShowHandFeedBack = false;
+	
+	
+	//GUI
+	gui = NULL;
+	createGUI();
+
 }
+
+//--------------------------------------------------------------
+int ofxInteractiveVideosPlayer::toggleMainVideo(){
+	bMainVideo = !bMainVideo;
+	return (int)bMainVideo;
+}
+
+//TODO
+//--------------------------------------------------------------
+void ofxInteractiveVideosPlayer::resetType2(modeInteraction _mode){
+	
+	myInteractionType = _mode;
+	
+	//reset the mode. From actual to the next mode.
+	switch (myInteractionType) {
+		case modeSequence:
+			//TODO
+			break;
+		case modeRandom:
+			//TODO
+			break;
+		case modeCover:
+			//TODO
+			break;
+		default:
+			//Do nothing
+			break;
+	}
+	
+}
+
 //--------------------------------------------------------------
 void ofxInteractiveVideosPlayer::setupSenderStadisticsOSC(){
 //	/selected_product label
@@ -48,20 +99,19 @@ void ofxInteractiveVideosPlayer::setupReceiverOSC(){
 }
 
 //--------------------------------------------------------------
-void ofxInteractiveVideosPlayer::setupAllNormalVideos(){
+void ofxInteractiveVideosPlayer::setupAllNormalVideos(string _videopath){
+	
+	videosPath = _videopath;
 	
 	idVidNow = -1;
 	
 	dir.allowExt("mov");
 	
-#ifdef USE_HAPCODEC
-	dir.listDir("videos/codecHAP/");
-#else
-	dir.listDir("videos/normal/");
-#endif
+	//List all videos inside the path folder
+	dir.listDir(videosPath);
 	
 	numVideos = dir.size();
-	cout << "numVideos found = " << numVideos << endl;
+	cout << "numVideos found in path " << videosPath << "is = " << numVideos << endl;
 	dir.sort(); // in linux the file system doesn't return file lists ordered in alphabetical order
 	
 
@@ -99,40 +149,69 @@ void ofxInteractiveVideosPlayer::setupAllNormalVideos(){
 }
 
 //--------------------------------------------------------------
+// Update OSC commands && video/s && Check End Of Video
 void ofxInteractiveVideosPlayer::update(){
 	
-	
+	//Update OSC from external Interaction
 	updateReceiverOSC();
-
 	
+	//update active video/s
 	if(idVidNow > -1){
-
-		videos[idVidNow].update();
-
-		if(videos[idVidNow].getPosition() > 0.989 && !bScratchingActive){
-
-			jump2MainVideo();
-			
-
-
-			//reset
-			firstPressedActionDone = false;
+		
+		switch (myInteractionType) {
+			case modeSequence:
+				//
+				videos[idVidNow].update();
+				
+				break;
+			case modeRandom:
+				
+				videos[idVidNow].update();
+				
+				break;
+			case modeCover:
+				//TODO Check and Update how many videos at same time do you want to play
+				
+				videos[idVidNow].update();
+				
+				break;
+			default:
+				//do nothing
+				break;
 		}
-		else if(videos[idVidNow].getPosition() > 0.989 && bScratchingActive){
-			bDetectedEndVideo++;
-		}
+		
+		
 	}
 	
-	if (bDetectedEndVideo > 1) {
-		bDetectedEndVideo = 0;
-		jump2MainVideo();
-		//reset
-		firstPressedActionDone = false;
-		cout << "Auto jump2MainVideo" << endl;
+	//Check END of VIDEOs. Take care If modeInteraction use a main video after end Actual Video
+	if(idVidNow > -1){
+		
+		//Fisrt if actual video is almost finishing then...
+		if(videos[idVidNow].getPosition() > 0.90){
+			
+			if(bMainVideo){
+				if(!bScratchingActive && idMainVideo != idVidNow){
+					jump2MainVideo();
+				}else if(!bScratchingActive && idMainVideo == idVidNow){
+					Jump2NextAction();
+				}
+			}else{
+				if(!bScratchingActive){
+					Jump2NextAction();
+					//TODO. Just if you want to change video while scraching. Then its necessary to Reset methods for mouse and other video behauviours.
+				}
+			}
+
+			
+		}//END VIDEO
+
 	}
+	else{
+		//NO VIDEO/S NO FUN
+	}
+	
 
 	//if(idVidNow > -1)cout << "videos[" << idVidNow << "].getPosition() = " << videos[idVidNow].getPosition() << endl;
-	
 	
 	
 }
@@ -143,12 +222,12 @@ void ofxInteractiveVideosPlayer::draw(){
 	ofSetWindowTitle(ofToString(ofGetFrameRate()));
 	if(idVidNow > -1){
 		
-
+		
 		ofSetColor(255, 255, 255);
 		videos[idVidNow].draw(0, 0, ofGetWidth(), ofGetHeight());
 		
 		
-		if(bScratchingActive == true){
+		if(bShowVideoFeedBack == true){
 			ofSetColor(ofColor::steelBlue); //200, 15, 15
 			ofFill();
 			float widthBar = 0.03;
@@ -163,7 +242,48 @@ void ofxInteractiveVideosPlayer::draw(){
 		
 	}
 	
+	ofSetColor(ofColor::white);
+	if(bShowHandFeedBack){
+		if(ofGetMousePressed()){
+			myFeedBackCursorImage.draw(ofVec2f(ofGetMouseX(), ofGetMouseY()), myFeedBackCursorImage.getWidth(), myFeedBackCursorImage.getHeight());
+		}
+	}
+	
 }
+
+
+//--------------------------------------------------------------
+void ofxInteractiveVideosPlayer::Jump2NextAction(){
+
+	switch (myInteractionType) {
+		case modeSequence:
+			//
+			jump2NextVideo();
+			break;
+		case modeRandom:
+			//TODO
+			
+			break;
+		case modeCover:
+			//TODO
+			
+			break;
+		default:
+			//do nothing
+			break;
+	}
+
+}
+
+
+//--------------------------------------------------------------
+void ofxInteractiveVideosPlayer::play(){}
+//--------------------------------------------------------------
+void ofxInteractiveVideosPlayer::pause(){}
+//--------------------------------------------------------------
+void ofxInteractiveVideosPlayer::next(){}
+//--------------------------------------------------------------
+void ofxInteractiveVideosPlayer::prev(){}
 
 //--------------------------------------------------------------
 void ofxInteractiveVideosPlayer::sendStadisticsOSC(int idVideo){
@@ -221,6 +341,7 @@ void ofxInteractiveVideosPlayer::updateMouseEvents(float _oscMouseX, float _oscM
 	
 	if (_oscMouseInside != oscMouseInside && _oscMouseInside == 0) {
 		//mouse released
+
 		mouseReleased(interactiveMouseX, interactiveMouseY, 0);
 		
 	}else if(_oscMouseInside != oscMouseInside && _oscMouseInside == 1){
@@ -242,6 +363,18 @@ void ofxInteractiveVideosPlayer::updateMouseEvents(float _oscMouseX, float _oscM
 }
 
 //--------------------------------------------------------------
+void ofxInteractiveVideosPlayer::jump2InitVideo(){
+	
+	//actual position
+	if(idVidNow > -1){
+		idVidNow = 0;
+		videos[idVidNow].play();
+		videos[idVidNow].setPosition(0);
+	}
+	
+}
+
+//--------------------------------------------------------------
 void ofxInteractiveVideosPlayer::jump2NextVideo(){
 	
 	//actual position
@@ -253,10 +386,29 @@ void ofxInteractiveVideosPlayer::jump2NextVideo(){
 		idVidNow++;
 		if (idVidNow > numVideos-1) {
 			idVidNow = 0;
+			videos[idVidNow].setPosition(0);
 			videos[idVidNow].play();
 		}else{videos[idVidNow].play();}
 	}
 
+}
+
+//--------------------------------------------------------------
+void ofxInteractiveVideosPlayer::jump2PrevVideo(){
+	
+	//actual position
+	if(idVidNow > -1){
+		videos[idVidNow].stop();
+		videos[idVidNow].setPosition(0);
+		
+		//next position
+		idVidNow--;
+		if (idVidNow < 0) {
+			idVidNow = numVideos -1;
+			videos[idVidNow].play();
+		}else{videos[idVidNow].play();}
+	}
+	
 }
 
 //--------------------------------------------------------------
@@ -352,16 +504,28 @@ void ofxInteractiveVideosPlayer::setFramePosition(int framePos){
 }
 
 //--------------------------------------------------------------
+void ofxInteractiveVideosPlayer::keyPressed(int key){
+	
+}
+
+//--------------------------------------------------------------
 void ofxInteractiveVideosPlayer::keyReleased(int key){
 
-	
-	if( key == 'n' ){
+	if( key == OF_KEY_RIGHT ){
 		jump2NextVideo();
-	}else if(key == 'r'){
+	}
+	else if(key == OF_KEY_LEFT){
+		jump2PrevVideo();
+	}
+	else if(key == 'r'){
 		jump2RandomVideo();
 	}else if(key == OF_KEY_F1){
 		bDrawDebuggin = !bDrawDebuggin;
 	}
+	else if(key == 'g' || key == 'G'){
+		gui->toggleVisible();
+	}
+		
 }
 
 //--------------------------------------------------------------
@@ -374,7 +538,7 @@ void ofxInteractiveVideosPlayer::mouseDragged(int x, int y, int button){
 	//cout << "counterFramesInteraction = " << counterFramesInteraction << endl;
 	
 	//float posMouseInVid = ofMap(x, 0, ofGetWidth(), 0, 1); // invert values to
-	int auxLastValsAvg = 100;
+	int auxLastValsAvg = 1;
 	float posMouseInVid = ofMap(statsMouse.getAverage(auxLastValsAvg)*ofGetWidth(), 0, ofGetWidth(), 0, 1); // invert values to
 	
 	if(idVidNow > -1){
@@ -385,6 +549,11 @@ void ofxInteractiveVideosPlayer::mouseDragged(int x, int y, int button){
 		
 		int newFramePos = (int)(totalFramesVideo * posScratchingVid);
 		//cout << "mouseDragged newFramePos = " << newFramePos << endl;
+		
+		//if(newFramePos > totalFramesVideo-totalFramesVideo*0.001){
+		//	newFramePos = totalFramesVideo-totalFramesVideo*0.001;
+		//}
+		
 		setFramePosition(newFramePos);
 		
 	}
@@ -418,6 +587,8 @@ void ofxInteractiveVideosPlayer::mousePressed(int x, int y, int button){
 //--------------------------------------------------------------
 void ofxInteractiveVideosPlayer::mouseReleased(int x, int y, int button){
 	
+	bScratchingActive = false;
+
 	//Reset average interaction
 	statsMouse.reset();
 	
@@ -426,24 +597,17 @@ void ofxInteractiveVideosPlayer::mouseReleased(int x, int y, int button){
 			videos[idVidNow].setSpeed(1);
 		}
 	
-		bScratchingActive = false;
-	
-	//Go to check for the following mousePressed action to set interactive video mode
-	if(idVidNow == 0){
-			bReady4VideoInteraction = true;
+	//Extra behauviour in case bMainVideo Activated and we are already in it
+	if(bMainVideo && idVidNow == idMainVideo){
 		
-	}
-	
-	if(bReady4VideoInteraction && !firstPressedActionDone){
-		firstPressedActionDone = true;
-		jump2RandomVideo();
-		cout << "Jump to random video" << endl;
+		Jump2NextAction();
+		
+		cout << "Jump to video #" <<  idVidNow << endl;
 	}
 	
 	//reset
 	pressedVideoPosition = 0;
 
-	
 	
 }
 
@@ -451,5 +615,41 @@ void ofxInteractiveVideosPlayer::mouseReleased(int x, int y, int button){
 void ofxInteractiveVideosPlayer::exit(){
 	for(int i=0; i< numVideos; i++ ){
 		videos.pop_back();
+	}
+	
+	gui->saveSettings("guivideos/guiSettings.xml");
+	cout << "saving Gui params to Xml" << endl;
+}
+
+//--------------------------------------------------------------
+void ofxInteractiveVideosPlayer::createGUI(){
+	
+	posGui = ofVec2f(0, 0);
+	gui = new ofxUICanvas(posGui.x, posGui.y, OFX_UI_GLOBAL_CANVAS_WIDTH, OFX_UI_GLOBAL_CANVAS_WIDTH);
+	gui->addLabelToggle("Toggle Main Video", &bMainVideo);
+	gui->addLabelToggle("Show Hand FeedBack", &bShowHandFeedBack);
+	gui->addLabelToggle("Show Video FeedBack", &bShowVideoFeedBack);
+	
+	gui->autoSizeToFitWidgets();
+	ofAddListener(gui->newGUIEvent,this,&ofxInteractiveVideosPlayer::guiEventBasics);
+	gui->loadSettings("guivideos/guiSettings.xml");
+	
+}
+
+//--------------------------------------------------------
+void ofxInteractiveVideosPlayer::guiEventBasics(ofxUIEventArgs &e){
+	string name = e.widget->getName();
+	//	int kind = e.widget->getKind();
+	if (name == "Toggle Main Video"){
+		//bVisibleBasicTerrain = !bVisibleBasicTerrain;
+		cout << "GUI Toggle Main Video  = "  << bMainVideo << endl;
+	}
+	else if (name == "Toggle Hand Video"){
+		//bVisibleBasicTerrain = !bVisibleBasicTerrain;
+		cout << "GUI Toggle Hand Video  = "  << bShowHandFeedBack << endl;
+	}
+	else if (name == "Toggle Video Video"){
+		//bVisibleBasicTerrain = !bVisibleBasicTerrain;
+		cout << "GUI Toggle Video Video  = "  << bShowVideoFeedBack << endl;
 	}
 }

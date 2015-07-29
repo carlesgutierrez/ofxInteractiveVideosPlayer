@@ -1,0 +1,15 @@
+<Widget>
+    <Kind>17</Kind>
+    <Name>Toggle Main Video</Name>
+    <Value>0</Value>
+</Widget>
+<Widget>
+    <Kind>17</Kind>
+    <Name>Show Hand FeedBack</Name>
+    <Value>1</Value>
+</Widget>
+<Widget>
+    <Kind>17</Kind>
+    <Name>Show Video FeedBack</Name>
+    <Value>1</Value>
+</Widget>
